@@ -15,8 +15,8 @@ USERNAME = "0733181201"
 PASSWORD = "6714453"
 TOKEN = f"{USERNAME}:{PASSWORD}"
 FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-INPUT_PATH = "ivr2:/1/1/1/0"
-OUTPUT_PATH = "ivr2:/1/1/1/99"
+INPUT_PATH = "ivr2:/1/1/0"
+OUTPUT_PATH = "ivr2:/1/1/99"
 
 async def main_loop():
     stock_dict = load_stock_list("hebrew_stocks.csv")
@@ -205,7 +205,7 @@ def upload_to_yemot(wav_file):
         }
     )
     response = requests.post(url, data=m, headers={'Content-Type': m.content_type})
-    print("\u2B06️ קובץ עלה לשלוחה 1/1/1/99")
+    print("\u2B06️ קובץ עלה לשלוחה 1/1/99")
 
 if __name__ == "__main__":
     asyncio.run(main_loop())
