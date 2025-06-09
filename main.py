@@ -3,13 +3,13 @@ import asyncio
 import edge_tts
 import os
 import subprocess
-import speech_recognition as sr
 import pandas as pd
 import yfinance as yf
 from difflib import get_close_matches
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 import re
 import shutil
+import whisper
 
 USERNAME = "0733181201"
 PASSWORD = "6714453"
@@ -149,15 +149,14 @@ def delete_yemot_file(file_name):
     print(f"\U0001F5D1️ הקובץ {file_name} נמחק מהשלוחה")
 
 def transcribe_audio(filename):
-    r = sr.Recognizer()
-    with sr.AudioFile(filename) as source:
-        audio = r.record(source)
     try:
-        text = r.recognize_google(audio, language="he-IL")
+        model = whisper.load_model("base")
+        result = model.transcribe(filename, language="he")
+        text = result.get("text", "").strip()
         print(f"\U0001F5E3️ זיהוי: {text}")
         return text
-    except:
-        print("\u274C לא הצליח לזהות דיבור")
+    except Exception as e:
+        print(f"❌ שגיאה בזיהוי דיבור: {e}")
         return ""
 
 def load_stock_list(csv_path):
