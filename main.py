@@ -18,6 +18,19 @@ FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 INPUT_PATH = "ivr2:/1/1/0"
 OUTPUT_PATH = "ivr2:/1/1/99"
 
+# 🔠 מסיר ניקוד מהטקסט (עברית בלבד)
+def remove_niqqud(text):
+    return re.sub(r'[\u0591-\u05C7]', '', text)
+
+# 🔍 מוצא את השם הקרוב ביותר מהמילון – לאחר ניקוי ניקוד ורישיות
+def get_best_match(query, stock_dict):
+    query_clean = remove_niqqud(query.strip().lower())
+    cleaned_keys = {remove_niqqud(k.lower()): k for k in stock_dict.keys()}
+    matches = get_close_matches(query_clean, cleaned_keys.keys(), n=1, cutoff=0.6)
+    if matches:
+        return cleaned_keys[matches[0]]
+    return None
+
 async def main_loop():
     stock_dict = load_stock_list("hebrew_stocks.csv")
     print("\U0001F501 בלולאת בדיקה מתחילה...")
@@ -150,10 +163,6 @@ def transcribe_audio(filename):
 def load_stock_list(csv_path):
     df = pd.read_csv(csv_path)
     return dict(zip(df['hebrew_name'], zip(df['ticker'], df['type'])))
-
-def get_best_match(query, stock_dict):
-    matches = get_close_matches(query, stock_dict.keys(), n=1, cutoff=0.6)
-    return matches[0] if matches else None
 
 def get_stock_data(ticker):
     try:
