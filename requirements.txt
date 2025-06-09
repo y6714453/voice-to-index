@@ -1,7 +1,8 @@
-pydub
 requests
+asyncio
 edge-tts
-speechrecognition
 pandas
 yfinance
 requests-toolbelt
+whisper
+torch
