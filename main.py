@@ -15,6 +15,8 @@ USERNAME = "0733181201"
 PASSWORD = "6714453"
 TOKEN = f"{USERNAME}:{PASSWORD}"
 FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+INPUT_PATH = "ivr2:/1/1/1/0"
+OUTPUT_PATH = "ivr2:/1/1/1/99"
 
 async def main_loop():
     stock_dict = load_stock_list("hebrew_stocks.csv")
@@ -31,7 +33,6 @@ async def main_loop():
             continue
 
         if file_name_only == last_processed_file:
-            print(f"\U0001F50D נמצא הקובץ: {file_name_only}")
             await asyncio.sleep(1)
             continue
 
@@ -82,7 +83,7 @@ def ensure_ffmpeg():
 
 def download_yemot_file():
     url = "https://www.call2all.co.il/ym/api/GetIVR2Dir"
-    params = {"token": TOKEN, "path": "9"}
+    params = {"token": TOKEN, "path": INPUT_PATH.split("ivr2:/")[1]}
     response = requests.get(url, params=params)
 
     if response.status_code != 200:
@@ -117,7 +118,7 @@ def download_yemot_file():
     print(f"\U0001F50D נמצא הקובץ: {max_name}")
 
     download_url = "https://www.call2all.co.il/ym/api/DownloadFile"
-    download_params = {"token": TOKEN, "path": f"ivr2:/9/{max_name}"}
+    download_params = {"token": TOKEN, "path": f"{INPUT_PATH}/{max_name}"}
     r = requests.get(download_url, params=download_params)
 
     if r.status_code == 200 and r.content:
@@ -130,7 +131,7 @@ def download_yemot_file():
 
 def delete_yemot_file(file_name):
     url = "https://www.call2all.co.il/ym/api/DeleteFile"
-    params = {"token": TOKEN, "path": f"ivr2:/9/{file_name}"}
+    params = {"token": TOKEN, "path": f"{INPUT_PATH}/{file_name}"}
     requests.get(url, params=params)
     print(f"\U0001F5D1️ הקובץ {file_name} נמחק מהשלוחה")
 
@@ -179,29 +180,13 @@ def get_stock_data(ticker):
 
 def format_text(name, ticker, data, stock_type):
     currency = "שקלים" if ticker.endswith(".TA") else "דולר"
-    if stock_type == "מניה":
-        return (
-            f"נמצאה מניה בשם {name}. המניה נסחרת בשווי של {data['current']} {currency}. "
-            f"מתחילת היום נרשמה {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז. "
-            f"בשלושת החודשים האחרונים נרשמה {'עלייה' if data['3mo'] > 0 else 'ירידה'} של {abs(data['3mo'])} אחוז. "
-            f"המחיר הנוכחי רחוק מהשיא ב־{abs(data['from_high'])} אחוז."
-        )
-    elif stock_type == "מדד":
-        return (
-            f"נמצא מדד בשם {name}. המדד עומד כעת על {data['current']} נקודות. "
-            f"מתחילת היום נרשמה {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז. "
-            f"בשלושת החודשים האחרונים {'עלייה' if data['3mo'] > 0 else 'ירידה'} של {abs(data['3mo'])} אחוז. "
-            f"המדד עומד כעת במרחק של {abs(data['from_high'])} אחוז מהשיא."
-        )
-    elif stock_type == "מטבע":
-        return (
-            f"נמצא מטבע בשם {name}. המטבע נסחר כעת בשווי של {data['current']} דולר. "
-            f"מתחילת היום {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז. "
-            f"בשלושת החודשים האחרונים {'עלייה' if data['3mo'] > 0 else 'ירידה'} של {abs(data['3mo'])} אחוז. "
-            f"המחיר הנוכחי רחוק מהשיא ב־{abs(data['from_high'])} אחוז."
-        )
-    else:
-        return f"נמצא נייר ערך בשם {name}. המחיר הנוכחי הוא {data['current']} {currency}."
+    return (
+        f"נמצאה {stock_type} בשם {name}. "
+        f"המחיר כעת: {data['current']} {currency}. "
+        f"השינוי היומי הוא {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז. "
+        f"בשלושה חודשים: {'עלייה' if data['3mo'] > 0 else 'ירידה'} של {abs(data['3mo'])} אחוז. "
+        f"המחיר הנוכחי רחוק מהשיא ב־{abs(data['from_high'])} אחוז."
+    )
 
 async def create_audio(text, filename="output.mp3"):
     communicate = edge_tts.Communicate(text, voice="he-IL-AvriNeural")
@@ -213,10 +198,14 @@ def convert_mp3_to_wav(mp3_file, wav_file):
 def upload_to_yemot(wav_file):
     url = "https://www.call2all.co.il/ym/api/UploadFile"
     m = MultipartEncoder(
-        fields={"token": TOKEN, "path": "ivr2:/99/001.wav", "upload": (wav_file, open(wav_file, 'rb'), 'audio/wav')}
+        fields={
+            "token": TOKEN,
+            "path": f"{OUTPUT_PATH}/001.wav",
+            "upload": (wav_file, open(wav_file, 'rb'), 'audio/wav')
+        }
     )
     response = requests.post(url, data=m, headers={'Content-Type': m.content_type})
-    print("\u2B06️ קובץ עלה לשלוחה 99")
+    print("\u2B06️ קובץ עלה לשלוחה 1/1/1/99")
 
 if __name__ == "__main__":
     asyncio.run(main_loop())
