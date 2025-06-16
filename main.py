@@ -223,12 +223,14 @@ def convert_mp3_to_wav(mp3_file, wav_file):
     subprocess.run(["ffmpeg", "-y", "-i", mp3_file, "-ar", "8000", "-ac", "1", "-acodec", "pcm_s16le", wav_file])
 
 def upload_to_yemot(wav_file):
-    # שלוחה אחות לשלוחת ההקלטות (במקום /1 => /11)
-    parent_path = "/".join(DOWNLOAD_PATH.split("/")[:-1])
-    upload_path = f"ivr2:/{parent_path}/11"
+    upload_path = "ivr2:/1/0/11/001.wav"  # נתיב מלא ומפורש לשלוחה 11
     url = "https://www.call2all.co.il/ym/api/UploadFile"
     m = MultipartEncoder(
-        fields={"token": TOKEN, "path": upload_path, "upload": (wav_file, open(wav_file, 'rb'), 'audio/wav')}
+        fields={
+            "token": TOKEN,
+            "path": upload_path,
+            "upload": (wav_file, open(wav_file, 'rb'), 'audio/wav')
+        }
     )
     response = requests.post(url, data=m, headers={'Content-Type': m.content_type})
     print(f"⬆️ קובץ עלה לשלוחה {upload_path}")
