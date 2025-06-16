@@ -15,6 +15,7 @@ USERNAME = "0733181201"
 PASSWORD = "6714453"
 TOKEN = f"{USERNAME}:{PASSWORD}"
 FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+DOWNLOAD_PATH = "1/0/1"  # שלוחת הקלטות
 
 async def main_loop():
     stock_dict = load_stock_list("hebrew_stocks.csv")
@@ -82,7 +83,7 @@ def ensure_ffmpeg():
 
 def download_yemot_file():
     url = "https://www.call2all.co.il/ym/api/GetIVR2Dir"
-    params = {"token": TOKEN, "path": "8"}
+    params = {"token": TOKEN, "path": DOWNLOAD_PATH}
     response = requests.get(url, params=params)
 
     if response.status_code != 200:
@@ -117,7 +118,7 @@ def download_yemot_file():
     print(f"🔍 נמצא הקובץ: {max_name}")
 
     download_url = "https://www.call2all.co.il/ym/api/DownloadFile"
-    download_params = {"token": TOKEN, "path": f"ivr2:/8/{max_name}"}
+    download_params = {"token": TOKEN, "path": f"ivr2:/{DOWNLOAD_PATH}/{max_name}"}
     r = requests.get(download_url, params=download_params)
 
     if r.status_code == 200 and r.content:
@@ -130,7 +131,7 @@ def download_yemot_file():
 
 def delete_yemot_file(file_name):
     url = "https://www.call2all.co.il/ym/api/DeleteFile"
-    params = {"token": TOKEN, "path": f"ivr2:/8/{file_name}"}
+    params = {"token": TOKEN, "path": f"ivr2:/{DOWNLOAD_PATH}/{file_name}"}
     requests.get(url, params=params)
     print(f"🗑️ הקובץ {file_name} נמחק מהשלוחה")
 
@@ -222,12 +223,13 @@ def convert_mp3_to_wav(mp3_file, wav_file):
     subprocess.run(["ffmpeg", "-y", "-i", mp3_file, "-ar", "8000", "-ac", "1", "-acodec", "pcm_s16le", wav_file])
 
 def upload_to_yemot(wav_file):
+    upload_path = f"ivr2:/{DOWNLOAD_PATH}/99"
     url = "https://www.call2all.co.il/ym/api/UploadFile"
     m = MultipartEncoder(
-        fields={"token": TOKEN, "path": "ivr2:/99/001.wav", "upload": (wav_file, open(wav_file, 'rb'), 'audio/wav')}
+        fields={"token": TOKEN, "path": upload_path, "upload": (wav_file, open(wav_file, 'rb'), 'audio/wav')}
     )
     response = requests.post(url, data=m, headers={'Content-Type': m.content_type})
-    print("⬆️ קובץ עלה לשלוחה 99")
+    print(f"⬆️ קובץ עלה לשלוחה {upload_path}")
 
 if __name__ == "__main__":
     asyncio.run(main_loop())
