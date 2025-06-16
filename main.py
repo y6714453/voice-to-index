@@ -1,212 +1,121 @@
-import requests
-import asyncio
-import edge_tts
 import os
-import subprocess
-import speech_recognition as sr
+import asyncio
 import pandas as pd
 import yfinance as yf
-from difflib import get_close_matches
+import subprocess
+from edge_tts import Communicate
 from requests_toolbelt.multipart.encoder import MultipartEncoder
-import re
-import shutil
+import requests
 
 USERNAME = "0733181201"
 PASSWORD = "6714453"
 TOKEN = f"{USERNAME}:{PASSWORD}"
-FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-INPUT_PATH = "ivr2:/9/1"
-OUTPUT_PATH = "ivr2:/99/1"
+UPLOAD_PATH = "ivr2:/99/001.wav"
+FFMPEG_PATH = "./bin/ffmpeg"
 
-async def main_loop():
-    stock_dict = load_stock_list("hebrew_stocks.csv")
-    print("🔁 בלולאת בדיקה מתחילה...")
-
-    ensure_ffmpeg()
-    last_processed_file = None
-
-    while True:
-        filename, file_name_only = download_yemot_file()
-
-        if not file_name_only:
-            await asyncio.sleep(1)
-            continue
-
-        if file_name_only == last_processed_file:
-            await asyncio.sleep(1)
-            continue
-
-        last_processed_file = file_name_only
-        print(f"📥 קובץ חדש לזיהוי: {file_name_only}")
-
-        if filename:
-            recognized = transcribe_audio(filename)
-            if recognized:
-                best_match = get_best_match(recognized, stock_dict)
-                if best_match:
-                    display_name, ticker, stock_type = stock_dict[best_match]
-                    data = get_stock_data(ticker)
-                    if data:
-                        text = format_text(display_name, ticker, data, stock_type)
-                    else:
-                        text = f"לא נמצאו נתונים עבור {display_name}"
-                else:
-                    text = "לא זוהה נייר ערך תואם"
-            else:
-                text = "לא זוהה דיבור ברור"
-
-            await create_audio(text, "output.mp3")
-            convert_mp3_to_wav("output.mp3", "output.wav")
-            upload_to_yemot("output.wav")
-            delete_yemot_file(file_name_only)
-            print("✅ הושלמה פעולה מחזורית\n")
-
-        await asyncio.sleep(1)
-
-def ensure_ffmpeg():
-    if not shutil.which("ffmpeg"):
-        print("🔧 מוריד ffmpeg...")
-        os.makedirs("ffmpeg_bin", exist_ok=True)
-        zip_path = "ffmpeg.zip"
-        r = requests.get(FFMPEG_URL)
-        with open(zip_path, 'wb') as f:
-            f.write(r.content)
-        import zipfile
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall("ffmpeg_bin")
-        os.remove(zip_path)
-        bin_path = next((os.path.join(root, file)
-                         for root, _, files in os.walk("ffmpeg_bin")
-                         for file in files if file == "ffmpeg.exe" or file == "ffmpeg"), None)
-        if bin_path:
-            os.environ["PATH"] += os.pathsep + os.path.dirname(bin_path)
-
-def download_yemot_file():
-    url = "https://www.call2all.co.il/ym/api/GetIVR2Dir"
-    params = {"token": TOKEN, "path": INPUT_PATH.split("ivr2:/")[1]}
-    response = requests.get(url, params=params)
-
-    if response.status_code != 200:
-        print("❌ שגיאה בשליפת הקבצים")
-        return None, None
-
-    data = response.json()
-    files = data.get("files", [])
-    if not files:
-        print("📭 אין קבצים בשלוחה")
-        return None, None
-
-    numbered_wav_files = []
-    for f in files:
-        name = f.get("name", "")
-        if not f.get("exists", False):
-            continue
-        if not name.endswith(".wav") or name.startswith("M"):
-            continue
-        match = re.match(r"(\d+)\.wav$", name)
-        if match:
-            number = int(match.group(1))
-            numbered_wav_files.append((number, name))
-
-    if not numbered_wav_files:
-        print("📭 אין קובצי WAV תקינים")
-        return None, None
-
-    max_number, max_name = max(numbered_wav_files, key=lambda x: x[0])
-    print(f"🔍 נמצא הקובץ: {max_name}")
-
-    download_url = "https://www.call2all.co.il/ym/api/DownloadFile"
-    download_params = {"token": TOKEN, "path": f"{INPUT_PATH}/{max_name}"}
-    r = requests.get(download_url, params=download_params)
-
-    if r.status_code == 200 and r.content:
-        with open("input.wav", "wb") as f:
-            f.write(r.content)
-        return "input.wav", max_name
-    else:
-        print("❌ שגיאה בהורדת הקובץ")
-        return None, None
-
-def delete_yemot_file(file_name):
-    url = "https://www.call2all.co.il/ym/api/DeleteFile"
-    params = {"token": TOKEN, "path": f"{INPUT_PATH}/{file_name}"}
-    requests.get(url, params=params)
-    print(f"🗑️ הקובץ {file_name} נמחק מהשלוחה")
-
-def transcribe_audio(filename):
-    r = sr.Recognizer()
-    with sr.AudioFile(filename) as source:
-        audio = r.record(source)
-    try:
-        text = r.recognize_google(audio, language="he-IL")
-        print(f"🗣️ זיהוי: {text}")
-        return text.strip()
-    except:
-        print("❌ לא הצליח לזהות דיבור")
-        return ""
-
+# 🔧 טעינת רשימת ניירות הערך
 def load_stock_list(csv_path):
     df = pd.read_csv(csv_path)
     stock_dict = {}
     for _, row in df.iterrows():
-        stock_dict[row['spoken_name'].strip()] = (
-            row['display_name'].strip(),
-            row['ticker'].strip(),
-            row['type'].strip()
-        )
+        stock_dict[row['search_name'].strip()] = {
+            "speak_name": row['speak_name'].strip(),
+            "ticker": row['ticker'].strip(),
+            "type": row['type'].strip()
+        }
     return stock_dict
 
-def get_best_match(query, stock_dict):
-    matches = get_close_matches(query.strip(), stock_dict.keys(), n=1, cutoff=0.6)
-    return matches[0] if matches else None
-
-def get_stock_data(ticker):
-    try:
-        stock = yf.Ticker(ticker)
-        hist = stock.history(period="1y")
-        if hist.empty or len(hist) < 2:
-            return None
-        current_price = hist['Close'].iloc[-1]
-        price_day = hist['Close'].iloc[-2]
-        price_week = hist['Close'].iloc[-6] if len(hist) > 6 else price_day
-        price_3mo = hist['Close'].iloc[-66] if len(hist) > 66 else price_day
-        price_year = hist['Close'].iloc[0]
-        max_price = hist['Close'].max()
-        return {
-            'current': round(current_price, 2),
-            'day': round((current_price - price_day) / price_day * 100, 2),
-            'week': round((current_price - price_week) / price_week * 100, 2),
-            '3mo': round((current_price - price_3mo) / price_3mo * 100, 2),
-            'year': round((current_price - price_year) / price_year * 100, 2),
-            'from_high': round((current_price - max_price) / max_price * 100, 2)
-        }
-    except:
+# 🎯 פונקציה לשליפת נתוני מניה מ־Yahoo Finance
+def get_stock_summary(ticker):
+    stock = yf.Ticker(ticker)
+    hist = stock.history(period="3mo")
+    if hist.empty:
         return None
 
-def format_text(display_name, ticker, data, stock_type):
-    currency = "שקלים" if ticker.endswith(".TA") else "דולר"
+    last_price = hist['Close'][-1]
+    one_day = hist['Close'][-1] / hist['Close'][-2] - 1 if len(hist) > 1 else 0
+    one_week = hist['Close'][-1] / hist['Close'][-6] - 1 if len(hist) > 5 else 0
+    one_month = hist['Close'][-1] / hist['Close'][-21] - 1 if len(hist) > 20 else 0
+    one_year = hist['Close'][-1] / hist['Close'][0] - 1 if len(hist) > 60 else 0
+    peak = hist['Close'].max()
+    from_peak = (last_price - peak) / peak
+
+    return {
+        "price": last_price,
+        "change_day": one_day,
+        "change_week": one_week,
+        "change_month": one_month,
+        "change_year": one_year,
+        "from_peak": from_peak
+    }
+
+# 🎙️ יצירת טקסט לקריינות
+def generate_text(name, data):
+    def fmt(pct):
+        sign = "עלייה" if pct > 0 else "ירידה" if pct < 0 else "שינוי"
+        return f"{sign} של {abs(pct * 100):.1f} אחוז"
+
+    price_str = f"שער אחרון של {data['price']:.2f} דולר"
     return (
-        f"נמצא {stock_type} בשם {display_name}. "
-        f"המחיר כעת: {data['current']} {currency}. "
-        f"השינוי היומי הוא {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז. "
-        f"בשלושה חודשים: {'עלייה' if data['3mo'] > 0 else 'ירידה'} של {abs(data['3mo'])} אחוז. "
-        f"המחיר הנוכחי רחוק מהשיא ב־{abs(data['from_high'])} אחוז."
+        f"{name}: {fmt(data['change_day'])} היום, "
+        f"{fmt(data['change_week'])} בשבוע האחרון, "
+        f"{fmt(data['change_month'])} בחודש האחרון, "
+        f"{fmt(data['change_year'])} בשלושת החודשים, "
+        f"{price_str}. "
+        f"המחיר הנוכחי רחוק מהשיא ב{abs(data['from_peak'] * 100):.1f} אחוז."
     )
 
-async def create_audio(text, filename="output.mp3"):
-    communicate = edge_tts.Communicate(text, voice="he-IL-AvriNeural")
-    await communicate.save(filename)
+# 🗣️ יצירת קריינות עם Edge-TTS
+async def text_to_speech(text, mp3_path):
+    communicate = Communicate(text, voice="he-IL-AvriNeural", rate="-20%")
+    await communicate.save(mp3_path)
 
-def convert_mp3_to_wav(mp3_file, wav_file):
-    subprocess.run(["ffmpeg", "-y", "-i", mp3_file, "-ar", "8000", "-ac", "1", "-acodec", "pcm_s16le", wav_file])
+# 🔄 המרת MP3 ל-WAV
+def convert_to_wav(mp3_path, wav_path):
+    subprocess.run([
+        FFMPEG_PATH, "-y",
+        "-i", mp3_path,
+        "-ar", "8000",
+        "-ac", "1",
+        "-acodec", "pcm_s16le",
+        wav_path
+    ])
 
-def upload_to_yemot(wav_file):
-    url = "https://www.call2all.co.il/ym/api/UploadFile"
-    m = MultipartEncoder(
-        fields={"token": TOKEN, "path": f"{OUTPUT_PATH}/001.wav", "upload": (wav_file, open(wav_file, 'rb'), 'audio/wav')}
-    )
-    response = requests.post(url, data=m, headers={'Content-Type': m.content_type})
-    print("⬆️ קובץ עלה לשלוחה")
+# ☁️ העלאת הקובץ לימות המשיח
+def upload_to_yemot(wav_path):
+    with open(wav_path, 'rb') as f:
+        m = MultipartEncoder(fields={
+            'token': TOKEN,
+            'path': UPLOAD_PATH,
+            'file': ('file', f, 'audio/wav')
+        })
+        response = requests.post("https://www.call2all.co.il/ym/api/UploadFile", data=m, headers={'Content-Type': m.content_type})
+        return response.text
+
+# 🚀 הפעלת הכל
+async def main_loop():
+    stock_dict = load_stock_list("stocks_hebrew.csv")
+    user_input = input("📥 הקלד שם נייר ערך בעברית: ").strip()
+
+    if user_input not in stock_dict:
+        print("❌ שם נייר הערך לא נמצא ברשימה.")
+        return
+
+    item = stock_dict[user_input]
+    print(f"🔍 מוצא נתונים עבור {item['speak_name']} ({item['ticker']})...")
+
+    data = get_stock_summary(item["ticker"])
+    if data is None:
+        print("⚠️ לא נמצאו נתונים עבור הטיקר.")
+        return
+
+    text = generate_text(item["speak_name"], data)
+    print(f"📄 טקסט להקראה:\n{text}")
+
+    await text_to_speech(text, "output.mp3")
+    convert_to_wav("output.mp3", "output.wav")
+    result = upload_to_yemot("output.wav")
+    print(f"✅ הסתיים. תשובת ימות המשיח: {result}")
 
 if __name__ == "__main__":
     asyncio.run(main_loop())
