@@ -64,7 +64,7 @@ async def main_loop():
 
 def ensure_ffmpeg():
     if not shutil.which("ffmpeg"):
-        print("🔧 מוריד ffmpeg...")
+        print("🛠️ מוריד ffmpeg...")
         os.makedirs("ffmpeg_bin", exist_ok=True)
         zip_path = "ffmpeg.zip"
         r = requests.get(FFMPEG_URL)
@@ -175,4 +175,59 @@ def get_stock_data(ticker):
         max_price = hist['Close'].max()
         return {
             'current': round(current_price, 2),
-            'day': round((current_price - price_day) / price_day * 100,*_
+            'day': round((current_price - price_day) / price_day * 100, 2),
+            'week': round((current_price - price_week) / price_week * 100, 2),
+            '3mo': round((current_price - price_3mo) / price_3mo * 100, 2),
+            'year': round((current_price - price_year) / price_year * 100, 2),
+            'from_high': round((current_price - max_price) / max_price * 100, 2)
+        }
+    except:
+        return None
+
+def format_text(stock_info, data):
+    name = stock_info['display_name']
+    ticker = stock_info['ticker']
+    stock_type = stock_info['type']
+    currency = "שקלים" if ticker.endswith(".TA") else "דולר"
+
+    if "מניה" in stock_type:
+        return (
+            f"נמצאה מניה בשם {name}. המניה נסחרת בשווי של {data['current']} {currency}. "
+            f"מתחילת היום נרשמה {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז. "
+            f"בשלושת החודשים האחרונים נרשמה {'עלייה' if data['3mo'] > 0 else 'ירידה'} של {abs(data['3mo'])} אחוז. "
+            f"המחיר הנוכחי רחוק מהשיא ב־{abs(data['from_high'])} אחוז."
+        )
+    elif "מדד" in stock_type:
+        return (
+            f"נמצא מדד בשם {name}. המדד עומד כעת על {data['current']} נקודות. "
+            f"מתחילת היום נרשמה {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז. "
+            f"בשלושת החודשים האחרונים {'עלייה' if data['3mo'] > 0 else 'ירידה'} של {abs(data['3mo'])} אחוז. "
+            f"המדד עומד כעת במרחק של {abs(data['from_high'])} אחוז מהשיא."
+        )
+    elif "קריפטו" in stock_type or "מטבע" in stock_type:
+        return (
+            f"נמצא מטבע בשם {name}. המטבע נסחר כעת בשווי של {data['current']} דולר. "
+            f"מתחילת היום {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז. "
+            f"בשלושת החודשים האחרונים {'עלייה' if data['3mo'] > 0 else 'ירידה'} של {abs(data['3mo'])} אחוז. "
+            f"המחיר הנוכחי רחוק מהשיא ב־{abs(data['from_high'])} אחוז."
+        )
+    else:
+        return f"נמצא נייר ערך בשם {name}. המחיר הנוכחי הוא {data['current']} {currency}."
+
+async def create_audio(text, filename="output.mp3"):
+    communicate = edge_tts.Communicate(text, voice="he-IL-AvriNeural")
+    await communicate.save(filename)
+
+def convert_mp3_to_wav(mp3_file, wav_file):
+    subprocess.run(["ffmpeg", "-y", "-i", mp3_file, "-ar", "8000", "-ac", "1", "-acodec", "pcm_s16le", wav_file])
+
+def upload_to_yemot(wav_file):
+    url = "https://www.call2all.co.il/ym/api/UploadFile"
+    m = MultipartEncoder(
+        fields={"token": TOKEN, "path": "ivr2:/99/001.wav", "upload": (wav_file, open(wav_file, 'rb'), 'audio/wav')}
+    )
+    response = requests.post(url, data=m, headers={'Content-Type': m.content_type})
+    print("⬆️ קובץ עלה לשלוחה 99")
+
+if __name__ == "__main__":
+    asyncio.run(main_loop())
