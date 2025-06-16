@@ -1,8 +1,0 @@
-requests
-asyncio
-edge-tts
-pandas
-yfinance
-requests-toolbelt
-whisper
-torch
