@@ -18,7 +18,7 @@ FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 
 async def main_loop():
     stock_dict = load_stock_list("hebrew_stocks.csv")
-    print("\U0001F501 בלולאת בדיקה מתחילה...")
+    print("🔁 בלולאת בדיקה מתחילה...")
 
     ensure_ffmpeg()
     last_processed_file = None
@@ -31,12 +31,12 @@ async def main_loop():
             continue
 
         if file_name_only == last_processed_file:
-            print(f"\U0001F50D נמצא הקובץ: {file_name_only}")
+            print(f"🔍 נמצא הקובץ: {file_name_only}")
             await asyncio.sleep(1)
             continue
 
         last_processed_file = file_name_only
-        print(f"\U0001F4E5 קובץ חדש לזיהוי: {file_name_only}")
+        print(f"📥 קובץ חדש לזיהוי: {file_name_only}")
 
         if filename:
             recognized = transcribe_audio(filename)
@@ -58,13 +58,13 @@ async def main_loop():
             convert_mp3_to_wav("output.mp3", "output.wav")
             upload_to_yemot("output.wav")
             delete_yemot_file(file_name_only)
-            print("\u2705 הושלמה פעולה מחזורית\n")
+            print("✅ הושלמה פעולה מחזורית\n")
 
         await asyncio.sleep(1)
 
 def ensure_ffmpeg():
     if not shutil.which("ffmpeg"):
-        print("\U0001F527 מוריד ffmpeg...")
+        print("🔧 מוריד ffmpeg...")
         os.makedirs("ffmpeg_bin", exist_ok=True)
         zip_path = "ffmpeg.zip"
         r = requests.get(FFMPEG_URL)
@@ -82,7 +82,7 @@ def ensure_ffmpeg():
 
 def download_yemot_file():
     url = "https://www.call2all.co.il/ym/api/GetIVR2Dir"
-    params = {"token": TOKEN, "path": "9"}
+    params = {"token": TOKEN, "path": "8"}
     response = requests.get(url, params=params)
 
     if response.status_code != 200:
@@ -114,10 +114,10 @@ def download_yemot_file():
         return None, None
 
     max_number, max_name = max(numbered_wav_files, key=lambda x: x[0])
-    print(f"\U0001F50D נמצא הקובץ: {max_name}")
+    print(f"🔍 נמצא הקובץ: {max_name}")
 
     download_url = "https://www.call2all.co.il/ym/api/DownloadFile"
-    download_params = {"token": TOKEN, "path": f"ivr2:/9/{max_name}"}
+    download_params = {"token": TOKEN, "path": f"ivr2:/8/{max_name}"}
     r = requests.get(download_url, params=download_params)
 
     if r.status_code == 200 and r.content:
@@ -130,9 +130,9 @@ def download_yemot_file():
 
 def delete_yemot_file(file_name):
     url = "https://www.call2all.co.il/ym/api/DeleteFile"
-    params = {"token": TOKEN, "path": f"ivr2:/9/{file_name}"}
+    params = {"token": TOKEN, "path": f"ivr2:/8/{file_name}"}
     requests.get(url, params=params)
-    print(f"\U0001F5D1️ הקובץ {file_name} נמחק מהשלוחה")
+    print(f"🗑️ הקובץ {file_name} נמחק מהשלוחה")
 
 def transcribe_audio(filename):
     r = sr.Recognizer()
@@ -140,10 +140,10 @@ def transcribe_audio(filename):
         audio = r.record(source)
     try:
         text = r.recognize_google(audio, language="he-IL")
-        print(f"\U0001F5E3️ זיהוי: {text}")
+        print(f"🗣️ זיהוי: {text}")
         return text
     except:
-        print("\u274C לא הצליח לזהות דיבור")
+        print("❌ לא הצליח לזהות דיבור")
         return ""
 
 def load_stock_list(csv_path):
@@ -175,59 +175,4 @@ def get_stock_data(ticker):
         max_price = hist['Close'].max()
         return {
             'current': round(current_price, 2),
-            'day': round((current_price - price_day) / price_day * 100, 2),
-            'week': round((current_price - price_week) / price_week * 100, 2),
-            '3mo': round((current_price - price_3mo) / price_3mo * 100, 2),
-            'year': round((current_price - price_year) / price_year * 100, 2),
-            'from_high': round((current_price - max_price) / max_price * 100, 2)
-        }
-    except:
-        return None
-
-def format_text(stock_info, data):
-    name = stock_info['display_name']
-    ticker = stock_info['ticker']
-    stock_type = stock_info['type']
-    currency = "שקלים" if ticker.endswith(".TA") else "דולר"
-
-    if "מניה" in stock_type:
-        return (
-            f"נמצאה מניה בשם {name}. המניה נסחרת בשווי של {data['current']} {currency}. "
-            f"מתחילת היום נרשמה {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז. "
-            f"בשלושת החודשים האחרונים נרשמה {'עלייה' if data['3mo'] > 0 else 'ירידה'} של {abs(data['3mo'])} אחוז. "
-            f"המחיר הנוכחי רחוק מהשיא ב־{abs(data['from_high'])} אחוז."
-        )
-    elif "מדד" in stock_type:
-        return (
-            f"נמצא מדד בשם {name}. המדד עומד כעת על {data['current']} נקודות. "
-            f"מתחילת היום נרשמה {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז. "
-            f"בשלושת החודשים האחרונים {'עלייה' if data['3mo'] > 0 else 'ירידה'} של {abs(data['3mo'])} אחוז. "
-            f"המדד עומד כעת במרחק של {abs(data['from_high'])} אחוז מהשיא."
-        )
-    elif "קריפטו" in stock_type or "מטבע" in stock_type:
-        return (
-            f"נמצא מטבע בשם {name}. המטבע נסחר כעת בשווי של {data['current']} דולר. "
-            f"מתחילת היום {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז. "
-            f"בשלושת החודשים האחרונים {'עלייה' if data['3mo'] > 0 else 'ירידה'} של {abs(data['3mo'])} אחוז. "
-            f"המחיר הנוכחי רחוק מהשיא ב־{abs(data['from_high'])} אחוז."
-        )
-    else:
-        return f"נמצא נייר ערך בשם {name}. המחיר הנוכחי הוא {data['current']} {currency}."
-
-async def create_audio(text, filename="output.mp3"):
-    communicate = edge_tts.Communicate(text, voice="he-IL-AvriNeural")
-    await communicate.save(filename)
-
-def convert_mp3_to_wav(mp3_file, wav_file):
-    subprocess.run(["ffmpeg", "-y", "-i", mp3_file, "-ar", "8000", "-ac", "1", "-acodec", "pcm_s16le", wav_file])
-
-def upload_to_yemot(wav_file):
-    url = "https://www.call2all.co.il/ym/api/UploadFile"
-    m = MultipartEncoder(
-        fields={"token": TOKEN, "path": "ivr2:/99/001.wav", "upload": (wav_file, open(wav_file, 'rb'), 'audio/wav')}
-    )
-    response = requests.post(url, data=m, headers={'Content-Type': m.content_type})
-    print("\u2B06️ קובץ עלה לשלוחה 99")
-
-if __name__ == "__main__":
-    asyncio.run(main_loop())
+            'day': round((current_price - price_day) / price_day * 100,*_
