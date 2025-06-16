@@ -1,121 +1,93 @@
-import os
-import asyncio
-import pandas as pd
+import json
 import yfinance as yf
+import asyncio
+import datetime
+import os
 import subprocess
 from edge_tts import Communicate
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 import requests
+import pandas as pd
 
 USERNAME = "0733181201"
 PASSWORD = "6714453"
 TOKEN = f"{USERNAME}:{PASSWORD}"
-UPLOAD_PATH = "ivr2:/99/001.wav"
+UPLOAD_PATH = "ivr2:/1/1/1/99"
 FFMPEG_PATH = "./bin/ffmpeg"
 
-# 🔧 טעינת רשימת ניירות הערך
+# טוען את רשימת המניות מהקובץ CSV
 def load_stock_list(csv_path):
     df = pd.read_csv(csv_path)
     stock_dict = {}
     for _, row in df.iterrows():
         stock_dict[row['search_name'].strip()] = {
-            "speak_name": row['speak_name'].strip(),
             "ticker": row['ticker'].strip(),
-            "type": row['type'].strip()
+            "type": row['type'].strip(),
+            "speak_name": row['speak_name'].strip()
         }
     return stock_dict
 
-# 🎯 פונקציה לשליפת נתוני מניה מ־Yahoo Finance
-def get_stock_summary(ticker):
-    stock = yf.Ticker(ticker)
-    hist = stock.history(period="3mo")
-    if hist.empty:
-        return None
+# המרת מספרים לטקסט בעברית (פשוטה)
+def number_to_words(num):
+    return str(round(num, 2)).replace('.', ' נקודה ')
 
-    last_price = hist['Close'][-1]
-    one_day = hist['Close'][-1] / hist['Close'][-2] - 1 if len(hist) > 1 else 0
-    one_week = hist['Close'][-1] / hist['Close'][-6] - 1 if len(hist) > 5 else 0
-    one_month = hist['Close'][-1] / hist['Close'][-21] - 1 if len(hist) > 20 else 0
-    one_year = hist['Close'][-1] / hist['Close'][0] - 1 if len(hist) > 60 else 0
-    peak = hist['Close'].max()
-    from_peak = (last_price - peak) / peak
+# יוצר טקסט הקראה עבור מניה או מדד
+def generate_text(name, data, speak_name):
+    change_daily = data['regularMarketChangePercent']
+    change_weekly = ((data['regularMarketPrice'] - data['fiftyTwoWeekLow']) / data['fiftyTwoWeekLow']) * 100
+    change_monthly = ((data['regularMarketPrice'] - data['fiftyDayAverage']) / data['fiftyDayAverage']) * 100
+    change_yearly = ((data['regularMarketPrice'] - data['fiftyTwoWeekLow']) / data['fiftyTwoWeekLow']) * 100
+    distance_from_high = ((data['fiftyTwoWeekHigh'] - data['regularMarketPrice']) / data['fiftyTwoWeekHigh']) * 100
 
-    return {
-        "price": last_price,
-        "change_day": one_day,
-        "change_week": one_week,
-        "change_month": one_month,
-        "change_year": one_year,
-        "from_peak": from_peak
-    }
+    direction = lambda x: "עלייה" if x > 0 else "ירידה" if x < 0 else "ללא שינוי"
+    percent = lambda x: f"{abs(round(x, 2))} אחוז"
 
-# 🎙️ יצירת טקסט לקריינות
-def generate_text(name, data):
-    def fmt(pct):
-        sign = "עלייה" if pct > 0 else "ירידה" if pct < 0 else "שינוי"
-        return f"{sign} של {abs(pct * 100):.1f} אחוז"
+    return f"""
+{name} – {direction(change_daily)} של {percent(change_daily)} היום,
+{direction(change_weekly)} של {percent(change_weekly)} בשבוע האחרון,
+{direction(change_monthly)} של {percent(change_monthly)} בחודש האחרון,
+{direction(change_yearly)} של {percent(change_yearly)} בשנה האחרונה.
+המחיר הנוכחי רחוק מהשיא ב־{percent(distance_from_high)}.
+"""
 
-    price_str = f"שער אחרון של {data['price']:.2f} דולר"
-    return (
-        f"{name}: {fmt(data['change_day'])} היום, "
-        f"{fmt(data['change_week'])} בשבוע האחרון, "
-        f"{fmt(data['change_month'])} בחודש האחרון, "
-        f"{fmt(data['change_year'])} בשלושת החודשים, "
-        f"{price_str}. "
-        f"המחיר הנוכחי רחוק מהשיא ב{abs(data['from_peak'] * 100):.1f} אחוז."
-    )
+# יצירת קובץ MP3 באמצעות Edge-TTS
+async def create_mp3(text, output_path):
+    communicate = Communicate(text, voice="he-IL-HilaNeural", rate="-20%")
+    await communicate.save(output_path)
 
-# 🗣️ יצירת קריינות עם Edge-TTS
-async def text_to_speech(text, mp3_path):
-    communicate = Communicate(text, voice="he-IL-AvriNeural", rate="-20%")
-    await communicate.save(mp3_path)
-
-# 🔄 המרת MP3 ל-WAV
+# המרת MP3 ל-WAV
 def convert_to_wav(mp3_path, wav_path):
-    subprocess.run([
-        FFMPEG_PATH, "-y",
-        "-i", mp3_path,
-        "-ar", "8000",
-        "-ac", "1",
-        "-acodec", "pcm_s16le",
-        wav_path
-    ])
+    subprocess.run([FFMPEG_PATH, "-y", "-i", mp3_path, wav_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-# ☁️ העלאת הקובץ לימות המשיח
+# העלאת קובץ לימות המשיח
 def upload_to_yemot(wav_path):
     with open(wav_path, 'rb') as f:
-        m = MultipartEncoder(fields={
-            'token': TOKEN,
-            'path': UPLOAD_PATH,
-            'file': ('file', f, 'audio/wav')
-        })
-        response = requests.post("https://www.call2all.co.il/ym/api/UploadFile", data=m, headers={'Content-Type': m.content_type})
-        return response.text
+        m = MultipartEncoder(fields={"file": ("file", f, "audio/wav")})
+        res = requests.post(
+            f"https://www.call2all.co.il/ym/api/UploadFile?token={TOKEN}&path={UPLOAD_PATH}",
+            data=m,
+            headers={"Content-Type": m.content_type}
+        )
+        print("סטטוס העלאה:", res.status_code, res.text)
 
-# 🚀 הפעלת הכל
+# פונקציית הריצה הראשית
 async def main_loop():
-    stock_dict = load_stock_list("stocks_hebrew.csv")
-    user_input = input("📥 הקלד שם נייר ערך בעברית: ").strip()
+    stock_dict = load_stock_list("hebrew_stocks.csv")
+    for search_name, info in stock_dict.items():
+        ticker = info["ticker"]
+        speak_name = info["speak_name"]
+        try:
+            stock = yf.Ticker(ticker)
+            data = stock.info
+            text = generate_text(speak_name, data, speak_name)
+            print("📢", text)
+            await create_mp3(text, "temp.mp3")
+            convert_to_wav("temp.mp3", "output.wav")
+            upload_to_yemot("output.wav")
+            break  # מספק להריץ פעם אחת לבדיקה
+        except Exception as e:
+            print(f"שגיאה בנתונים עבור {search_name}: {e}")
 
-    if user_input not in stock_dict:
-        print("❌ שם נייר הערך לא נמצא ברשימה.")
-        return
-
-    item = stock_dict[user_input]
-    print(f"🔍 מוצא נתונים עבור {item['speak_name']} ({item['ticker']})...")
-
-    data = get_stock_summary(item["ticker"])
-    if data is None:
-        print("⚠️ לא נמצאו נתונים עבור הטיקר.")
-        return
-
-    text = generate_text(item["speak_name"], data)
-    print(f"📄 טקסט להקראה:\n{text}")
-
-    await text_to_speech(text, "output.mp3")
-    convert_to_wav("output.mp3", "output.wav")
-    result = upload_to_yemot("output.wav")
-    print(f"✅ הסתיים. תשובת ימות המשיח: {result}")
-
+# הפעלת הלולאה
 if __name__ == "__main__":
     asyncio.run(main_loop())
