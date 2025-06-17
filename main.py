@@ -188,26 +188,26 @@ def format_text(stock_info, data):
     stock_type = stock_info['type']
     currency = "שקלים" if ticker.endswith(".TA") else "דולר"
 
+    day = f"מתחילת היום נרשמה {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז."
+    week = f"מתחילת השבוע נרשמה {'עלייה' if data['week'] > 0 else 'ירידה'} של {abs(data['week'])} אחוז."
+    mo3 = f"בשלושת החודשים האחרונים נרשמה {'עלייה' if data['3mo'] > 0 else 'ירידה'} של {abs(data['3mo'])} אחוז."
+    year = f"מתחילת השנה נרשמה {'עלייה' if data['year'] > 0 else 'ירידה'} של {abs(data['year'])} אחוז."
+    high = f"המחיר הנוכחי רחוק מהשיא ב־{abs(data['from_high'])} אחוז."
+
     if "מניה" in stock_type:
         return (
             f"נמצאה מניה בשם {name}. המניה נסחרת בשווי של {data['current']} {currency}. "
-            f"מתחילת היום נרשמה {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז. "
-            f"בשלושת החודשים האחרונים נרשמה {'עלייה' if data['3mo'] > 0 else 'ירידה'} של {abs(data['3mo'])} אחוז. "
-            f"המחיר הנוכחי רחוק מהשיא ב־{abs(data['from_high'])} אחוז."
+            f"{day} {week} {mo3} {year} {high}"
         )
     elif "מדד" in stock_type:
         return (
             f"נמצא מדד בשם {name}. המדד עומד כעת על {data['current']} נקודות. "
-            f"מתחילת היום נרשמה {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז. "
-            f"בשלושת החודשים האחרונים {'עלייה' if data['3mo'] > 0 else 'ירידה'} של {abs(data['3mo'])} אחוז. "
-            f"המדד עומד כעת במרחק של {abs(data['from_high'])} אחוז מהשיא."
+            f"{day} {week} {mo3} {year} {high}"
         )
     elif "קריפטו" in stock_type or "מטבע" in stock_type:
         return (
             f"נמצא מטבע בשם {name}. המטבע נסחר כעת בשווי של {data['current']} דולר. "
-            f"מתחילת היום {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז. "
-            f"בשלושת החודשים האחרונים {'עלייה' if data['3mo'] > 0 else 'ירידה'} של {abs(data['3mo'])} אחוז. "
-            f"המחיר הנוכחי רחוק מהשיא ב־{abs(data['from_high'])} אחוז."
+            f"{day} {week} {mo3} {year} {high}"
         )
     else:
         return f"נמצא נייר ערך בשם {name}. המחיר הנוכחי הוא {data['current']} {currency}."
