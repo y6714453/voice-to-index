@@ -64,22 +64,25 @@ async def main_loop():
         await asyncio.sleep(1)
 
 def ensure_ffmpeg():
-    if not shutil.which("ffmpeg"):
-        print("🛠️ מוריד ffmpeg...")
-        os.makedirs("ffmpeg_bin", exist_ok=True)
-        zip_path = "ffmpeg.zip"
-        r = requests.get(FFMPEG_URL)
-        with open(zip_path, 'wb') as f:
-            f.write(r.content)
-        import zipfile
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall("ffmpeg_bin")
-        os.remove(zip_path)
-        bin_path = next((os.path.join(root, file)
-                         for root, _, files in os.walk("ffmpeg_bin")
-                         for file in files if file == "ffmpeg.exe" or file == "ffmpeg"), None)
-        if bin_path:
-            os.environ["PATH"] += os.pathsep + os.path.dirname(bin_path)
+    if shutil.which("ffmpeg"):
+        print("✅ ffmpeg כבר קיים – מדלג על הורדה")
+        return
+
+    print("⬇️ מוריד ffmpeg...")
+    os.makedirs("ffmpeg_bin", exist_ok=True)
+    zip_path = "ffmpeg.zip"
+    r = requests.get(FFMPEG_URL)
+    with open(zip_path, 'wb') as f:
+        f.write(r.content)
+    import zipfile
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall("ffmpeg_bin")
+    os.remove(zip_path)
+    bin_path = next((os.path.join(root, file)
+                     for root, _, files in os.walk("ffmpeg_bin")
+                     for file in files if file == "ffmpeg.exe" or file == "ffmpeg"), None)
+    if bin_path:
+        os.environ["PATH"] += os.pathsep + os.path.dirname(bin_path)
 
 def download_yemot_file():
     url = "https://www.call2all.co.il/ym/api/GetIVR2Dir"
@@ -223,7 +226,7 @@ def convert_mp3_to_wav(mp3_file, wav_file):
     subprocess.run(["ffmpeg", "-y", "-i", mp3_file, "-ar", "8000", "-ac", "1", "-acodec", "pcm_s16le", wav_file])
 
 def upload_to_yemot(wav_file):
-    upload_path = "ivr2:/1/0/11/001.wav"  # נתיב מלא ומפורש לשלוחה 11
+    upload_path = "ivr2:/1/0/11/001.wav"  # נתיב לשלוחה 11
     url = "https://www.call2all.co.il/ym/api/UploadFile"
     m = MultipartEncoder(
         fields={
