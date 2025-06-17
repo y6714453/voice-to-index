@@ -32,7 +32,6 @@ async def main_loop():
             continue
 
         if file_name_only == last_processed_file:
-            print(f"🔍 נמצא הקובץ: {file_name_only}")
             await asyncio.sleep(1)
             continue
 
@@ -48,6 +47,7 @@ async def main_loop():
                     data = get_stock_data(stock_info['ticker'])
                     if data:
                         text = format_text(stock_info, data)
+                        print(f"🟩 זוהה {best_match} → מעלה לימות: {stock_info['display_name']}")
                     else:
                         text = f"לא נמצאו נתונים עבור {stock_info['display_name']}"
                 else:
@@ -64,25 +64,24 @@ async def main_loop():
         await asyncio.sleep(1)
 
 def ensure_ffmpeg():
-    if shutil.which("ffmpeg"):
-        print("✅ ffmpeg כבר קיים – מדלג על הורדה")
-        return
-
-    print("⬇️ מוריד ffmpeg...")
-    os.makedirs("ffmpeg_bin", exist_ok=True)
-    zip_path = "ffmpeg.zip"
-    r = requests.get(FFMPEG_URL)
-    with open(zip_path, 'wb') as f:
-        f.write(r.content)
-    import zipfile
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall("ffmpeg_bin")
-    os.remove(zip_path)
-    bin_path = next((os.path.join(root, file)
-                     for root, _, files in os.walk("ffmpeg_bin")
-                     for file in files if file == "ffmpeg.exe" or file == "ffmpeg"), None)
-    if bin_path:
-        os.environ["PATH"] += os.pathsep + os.path.dirname(bin_path)
+    if not shutil.which("ffmpeg"):
+        print("🛠️ מוריד ffmpeg...")
+        os.makedirs("ffmpeg_bin", exist_ok=True)
+        zip_path = "ffmpeg.zip"
+        r = requests.get(FFMPEG_URL)
+        with open(zip_path, 'wb') as f:
+            f.write(r.content)
+        import zipfile
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall("ffmpeg_bin")
+        os.remove(zip_path)
+        bin_path = next((os.path.join(root, file)
+                         for root, _, files in os.walk("ffmpeg_bin")
+                         for file in files if file == "ffmpeg.exe" or file == "ffmpeg"), None)
+        if bin_path:
+            os.environ["PATH"] += os.pathsep + os.path.dirname(bin_path)
+    else:
+        print("⏩ ffmpeg כבר מותקן, מדלג על ההורדה")
 
 def download_yemot_file():
     url = "https://www.call2all.co.il/ym/api/GetIVR2Dir"
@@ -96,7 +95,6 @@ def download_yemot_file():
     data = response.json()
     files = data.get("files", [])
     if not files:
-        print("📭 אין קבצים בשלוחה")
         return None, None
 
     numbered_wav_files = []
@@ -104,9 +102,7 @@ def download_yemot_file():
         name = f.get("name", "")
         if not f.get("exists", False):
             continue
-        if not name.endswith(".wav"):
-            continue
-        if name.startswith("M"):
+        if not name.endswith(".wav") or name.startswith("M"):
             continue
         match = re.match(r"(\d+)\.wav$", name)
         if match:
@@ -114,11 +110,9 @@ def download_yemot_file():
             numbered_wav_files.append((number, name))
 
     if not numbered_wav_files:
-        print("📭 אין קובצי WAV תקינים")
         return None, None
 
     max_number, max_name = max(numbered_wav_files, key=lambda x: x[0])
-    print(f"🔍 נמצא הקובץ: {max_name}")
 
     download_url = "https://www.call2all.co.il/ym/api/DownloadFile"
     download_params = {"token": TOKEN, "path": f"ivr2:/{DOWNLOAD_PATH}/{max_name}"}
@@ -223,10 +217,13 @@ async def create_audio(text, filename="output.mp3"):
     await communicate.save(filename)
 
 def convert_mp3_to_wav(mp3_file, wav_file):
-    subprocess.run(["ffmpeg", "-y", "-i", mp3_file, "-ar", "8000", "-ac", "1", "-acodec", "pcm_s16le", wav_file])
+    subprocess.run([
+        "ffmpeg", "-loglevel", "error", "-y",
+        "-i", mp3_file, "-ar", "8000", "-ac", "1", "-acodec", "pcm_s16le", wav_file
+    ])
 
 def upload_to_yemot(wav_file):
-    upload_path = "ivr2:/1/0/11/001.wav"  # נתיב לשלוחה 11
+    upload_path = "ivr2:/1/0/11/001.wav"
     url = "https://www.call2all.co.il/ym/api/UploadFile"
     m = MultipartEncoder(
         fields={
