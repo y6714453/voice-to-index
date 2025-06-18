@@ -42,7 +42,7 @@ async def main_loop():
             continue
 
         last_processed_file = file_name_only
-        print(f"📥 קובץ חדש לזיהוי: {file_name_only}")
+        print(f"📅 קובץ חדש לזיהוי: {file_name_only}")
 
         if filename:
             recognized = transcribe_audio(filename)
@@ -52,7 +52,7 @@ async def main_loop():
                     stock_info = stock_dict[best_match]
                     data = get_stock_data(stock_info['ticker'])
                     if data:
-                        text = f"נמצא מדד בשם {stock_info['display_name']}. המדד עומד על {data['current']} נקודות. מתחילת היום נרשמה {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז."
+                        text = f"נמצא מדד בשם {stock_info['display_name']}. המדד עומד על {data['current']} נקודות. מתחילת היום נרשמה {'עלייה' if data['day'] > 0 else 'ירידה'} של {abs(data['day'])} אחוז." 
                     else:
                         text = f"לא נמצאו נתונים למדד {stock_info['display_name']}"
                 else:
@@ -60,7 +60,7 @@ async def main_loop():
             else:
                 text = "לא זוהה דיבור ברור"
 
-            print(f"🎙️ טקסט להקראה: {text}")
+            print(f"🎤 טקסט להקראה: {text}")
             await create_audio(text, "output.mp3")
             convert_mp3_to_wav("output.mp3", "output.wav")
             upload_to_yemot("output.wav")
