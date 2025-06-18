@@ -9,7 +9,8 @@ from difflib import get_close_matches
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 import re
 import shutil
-import whisper  # ✅ גרסה נכונה של OpenAI
+import whisper
+import warnings
 
 USERNAME = "0733181201"
 PASSWORD = "6714453"
@@ -17,9 +18,12 @@ TOKEN = f"{USERNAME}:{PASSWORD}"
 FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 DOWNLOAD_PATH = "1/0/1"
 
+# הסתרת אזהרות Whisper (כמו FP16)
+warnings.filterwarnings("ignore")
+
 async def main_loop():
     stock_dict = load_stock_list("hebrew_stocks.csv")
-    print("🔁 בלולאת בדיקה מתחילה...")
+    print("🔁 בלולאת בדיקה מתחילה...", flush=True)
 
     ensure_ffmpeg()
     last_processed_file = None
@@ -36,18 +40,20 @@ async def main_loop():
             continue
 
         last_processed_file = file_name_only
-        print(f"📥 קובץ חדש לזיהוי: {file_name_only}")
+        print(f"📥 קובץ חדש לזיהוי: {file_name_only}", flush=True)
 
         if filename:
             recognized = transcribe_audio(filename)
             if recognized:
+                print(f"🗣️ זיהוי: {recognized}", flush=True)
                 best_match = get_best_match(recognized, stock_dict)
                 if best_match:
                     stock_info = stock_dict[best_match]
+                    print(f"🎯 התאמה: {recognized} → {stock_info['display_name']}", flush=True)
                     data = get_stock_data(stock_info['ticker'])
                     if data:
                         text = format_text(stock_info, data)
-                        print(f"🟩 זוהה {best_match} → מעלה לימות: {stock_info['display_name']}")
+                        print("📊 נוצר טקסט לקריינות", flush=True)
                     else:
                         text = f"לא נמצאו נתונים עבור {stock_info['display_name']}"
                 else:
@@ -56,16 +62,18 @@ async def main_loop():
                 text = "לא זוהה דיבור ברור"
 
             await create_audio(text, "output.mp3")
+            print("🎧 קובץ MP3 נוצר", flush=True)
             convert_mp3_to_wav("output.mp3", "output.wav")
+            print("🔄 קובץ הומר ל-WAV", flush=True)
             upload_to_yemot("output.wav")
             delete_yemot_file(file_name_only)
-            print("✅ הושלמה פעולה מחזורית\n")
+            print("✅ הושלמה פעולה מחזורית\n", flush=True)
 
         await asyncio.sleep(1)
 
 def ensure_ffmpeg():
     if not shutil.which("ffmpeg"):
-        print("🛠️ מוריד ffmpeg...")
+        print("🛠️ מתקין ffmpeg...", flush=True)
         os.makedirs("ffmpeg_bin", exist_ok=True)
         zip_path = "ffmpeg.zip"
         r = requests.get(FFMPEG_URL)
@@ -81,7 +89,7 @@ def ensure_ffmpeg():
         if bin_path:
             os.environ["PATH"] += os.pathsep + os.path.dirname(bin_path)
     else:
-        print("⏩ ffmpeg כבר מותקן, מדלג על ההורדה")
+        print("⏩ ffmpeg כבר מותקן, מדלג על ההורדה", flush=True)
 
 def download_yemot_file():
     url = "https://www.call2all.co.il/ym/api/GetIVR2Dir"
@@ -89,7 +97,7 @@ def download_yemot_file():
     response = requests.get(url, params=params)
 
     if response.status_code != 200:
-        print("❌ שגיאה בשליפת הקבצים")
+        print("❌ שגיאה בשליפת רשימת הקבצים", flush=True)
         return None, None
 
     data = response.json()
@@ -123,25 +131,32 @@ def download_yemot_file():
             f.write(r.content)
         return "input.wav", max_name
     else:
-        print("❌ שגיאה בהורדת הקובץ")
+        print("❌ שגיאה בהורדת הקובץ", flush=True)
         return None, None
 
 def delete_yemot_file(file_name):
     url = "https://www.call2all.co.il/ym/api/DeleteFile"
     params = {"token": TOKEN, "path": f"ivr2:/{DOWNLOAD_PATH}/{file_name}"}
     requests.get(url, params=params)
-    print(f"🗑️ הקובץ {file_name} נמחק מהשלוחה")
+    print(f"🗑️ הקובץ {file_name} נמחק מהשלוחה", flush=True)
+
+def preprocess_audio_for_whisper(input_file, output_file="whisper_ready.wav"):
+    subprocess.run([
+        "ffmpeg", "-y", "-i", input_file,
+        "-ar", "16000", "-ac", "1", "-acodec", "pcm_s16le", output_file
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return output_file
 
 def transcribe_audio(filename):
-    print("🛠️ טוען את מודל Whisper המקורי...")
-    model = whisper.load_model("base")
-    result = model.transcribe(filename, language="he")
-    text = result.get("text", "").strip()
-    if text:
-        print(f"🗣️ זיהוי: {text}")
+    print("🛠️ טוען את המודל Whisper המקורי...", flush=True)
+    try:
+        model = whisper.load_model("base")
+        clean_file = preprocess_audio_for_whisper(filename)
+        result = model.transcribe(clean_file, language="he")
+        text = result.get("text", "").strip()
         return text
-    else:
-        print("❌ לא זוהה דיבור ברור")
+    except Exception as e:
+        print(f"🚨 שגיאה בתמלול: {e}", flush=True)
         return ""
 
 def load_stock_list(csv_path):
@@ -233,7 +248,7 @@ def upload_to_yemot(wav_file):
         }
     )
     response = requests.post(url, data=m, headers={'Content-Type': m.content_type})
-    print(f"⬆️ קובץ עלה לשלוחה {upload_path}")
+    print(f"⬆️ קובץ עלה לשלוחה {upload_path}", flush=True)
 
 if __name__ == "__main__":
     asyncio.run(main_loop())
