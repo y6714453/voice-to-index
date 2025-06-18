@@ -9,7 +9,7 @@ from difflib import get_close_matches
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 import re
 import shutil
-import whisper  # ← חדש
+import whisper  # ✅ חדש
 
 USERNAME = "0733181201"
 PASSWORD = "6714453"
@@ -132,10 +132,10 @@ def delete_yemot_file(file_name):
     requests.get(url, params=params)
     print(f"🗑️ הקובץ {file_name} נמחק מהשלוחה")
 
-# ✅ כאן החלפנו ל־Whisper
+# ✅ זיהוי דיבור עם Whisper (באנגלית בלבד – בלי תרגום!)
 def transcribe_audio(filename):
     print("🛠️ טוען את מודל Whisper לזיהוי דיבור...")
-    model = whisper.load_model("base")
+    model = whisper.load_model("base")  # ← שים לב: לא לתרגם ל"בסיס"
     print("🎧 ממיר קובץ לזיהוי...")
     result = model.transcribe(filename, language="he")
     text = result.get("text", "").strip()
