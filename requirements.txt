@@ -1,8 +1,9 @@
-pydub
-requests
-edge-tts
 pandas
 yfinance
+edge-tts
+requests
+ffmpeg-python
+whisper
+openai-whisper @ git+https://github.com/openai/whisper.git
 requests-toolbelt
-torch
-git+https://github.com/openai/whisper.git
+SpeechRecognition
