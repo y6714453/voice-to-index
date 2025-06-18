@@ -144,10 +144,13 @@ def transcribe_audio(filename):
         print("❌ לא הצליח לזהות דיבור")
         return ""
 
+def normalize(text):
+    return re.sub(r'[^א-תa-zA-Z0-9 ]', '', text).lower().strip()
+
 def load_stock_list(csv_path):
     df = pd.read_csv(csv_path)
     return {
-        row['hebrew_name']: {
+        normalize(row['hebrew_name']): {
             'display_name': row['display_name'],
             'ticker': row['ticker'],
             'type': row['type']
@@ -156,7 +159,8 @@ def load_stock_list(csv_path):
     }
 
 def get_best_match(query, stock_dict):
-    matches = get_close_matches(query, stock_dict.keys(), n=1, cutoff=0.6)
+    norm_query = normalize(query)
+    matches = get_close_matches(norm_query, stock_dict.keys(), n=1, cutoff=0.6)
     return matches[0] if matches else None
 
 def get_stock_data(ticker):
