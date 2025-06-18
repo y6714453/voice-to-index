@@ -15,7 +15,7 @@ USERNAME = "0733181201"
 PASSWORD = "6714453"
 TOKEN = f"{USERNAME}:{PASSWORD}"
 FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-DOWNLOAD_PATH = "1/0/1"  # שלוחת ההקלטות
+DOWNLOAD_PATH = "1/0/1"
 
 async def main_loop():
     stock_dict = load_stock_list("hebrew_stocks.csv")
@@ -30,6 +30,8 @@ async def main_loop():
         if not file_name_only:
             await asyncio.sleep(1)
             continue
+
+        print("📂 נמצא קובץ")
 
         if file_name_only == last_processed_file:
             await asyncio.sleep(1)
@@ -58,7 +60,6 @@ async def main_loop():
             await create_audio(text, "output.mp3")
             convert_mp3_to_wav("output.mp3", "output.wav")
             upload_to_yemot("output.wav")
-            delete_yemot_file(file_name_only)
             print("✅ הושלמה פעולה מחזורית\n")
 
         await asyncio.sleep(1)
@@ -125,12 +126,6 @@ def download_yemot_file():
     else:
         print("❌ שגיאה בהורדת הקובץ")
         return None, None
-
-def delete_yemot_file(file_name):
-    url = "https://www.call2all.co.il/ym/api/DeleteFile"
-    params = {"token": TOKEN, "path": f"ivr2:/{DOWNLOAD_PATH}/{file_name}"}
-    requests.get(url, params=params)
-    print(f"🗑️ הקובץ {file_name} נמחק מהשלוחה")
 
 def transcribe_audio(filename):
     r = sr.Recognizer()
@@ -199,20 +194,11 @@ def format_text(stock_info, data):
     high = f"המחיר הנוכחי רחוק מהשיא ב־{abs(data['from_high'])} אחוז."
 
     if "מניה" in stock_type:
-        return (
-            f"נמצאה מניה בשם {name}. המניה נסחרת בשווי של {data['current']} {currency}. "
-            f"{day} {week} {mo3} {year} {high}"
-        )
+        return f"נמצאה מניה בשם {name}. המניה נסחרת בשווי של {data['current']} {currency}. {day} {week} {mo3} {year} {high}"
     elif "מדד" in stock_type:
-        return (
-            f"נמצא מדד בשם {name}. המדד עומד כעת על {data['current']} נקודות. "
-            f"{day} {week} {mo3} {year} {high}"
-        )
+        return f"נמצא מדד בשם {name}. המדד עומד כעת על {data['current']} נקודות. {day} {week} {mo3} {year} {high}"
     elif "קריפטו" in stock_type or "מטבע" in stock_type:
-        return (
-            f"נמצא מטבע בשם {name}. המטבע נסחר כעת בשווי של {data['current']} דולר. "
-            f"{day} {week} {mo3} {year} {high}"
-        )
+        return f"נמצא מטבע בשם {name}. המטבע נסחר כעת בשווי של {data['current']} דולר. {day} {week} {mo3} {year} {high}"
     else:
         return f"נמצא נייר ערך בשם {name}. המחיר הנוכחי הוא {data['current']} {currency}."
 
