@@ -3,26 +3,69 @@ import asyncio
 import edge_tts
 import os
 import subprocess
+import speech_recognition as sr
 import pandas as pd
 import yfinance as yf
 from difflib import get_close_matches
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 import re
 import shutil
-import whisper
-import warnings
 
 USERNAME = "0733181201"
 PASSWORD = "6714453"
 TOKEN = f"{USERNAME}:{PASSWORD}"
 FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-DOWNLOAD_PATH = "1/0/11"
+DOWNLOAD_PATH = "1/0/1"  # שלוחת ההקלטות
 
-warnings.filterwarnings("ignore")
+async def main_loop():
+    stock_dict = load_stock_list("hebrew_stocks.csv")
+    print("🔁 בלולאת בדיקה מתחילה...")
+
+    ensure_ffmpeg()
+    last_processed_file = None
+
+    while True:
+        filename, file_name_only = download_yemot_file()
+
+        if not file_name_only:
+            await asyncio.sleep(1)
+            continue
+
+        if file_name_only == last_processed_file:
+            await asyncio.sleep(1)
+            continue
+
+        last_processed_file = file_name_only
+        print(f"📥 קובץ חדש לזיהוי: {file_name_only}")
+
+        if filename:
+            recognized = transcribe_audio(filename)
+            if recognized:
+                best_match = get_best_match(recognized, stock_dict)
+                if best_match:
+                    stock_info = stock_dict[best_match]
+                    data = get_stock_data(stock_info['ticker'])
+                    if data:
+                        text = format_text(stock_info, data)
+                        print(f"🟩 זוהה {best_match} → מעלה לימות: {stock_info['display_name']}")
+                    else:
+                        text = f"לא נמצאו נתונים עבור {stock_info['display_name']}"
+                else:
+                    text = "לא זוהה נייר ערך תואם"
+            else:
+                text = "לא זוהה דיבור ברור"
+
+            await create_audio(text, "output.mp3")
+            convert_mp3_to_wav("output.mp3", "output.wav")
+            upload_to_yemot("output.wav")
+            delete_yemot_file(file_name_only)
+            print("✅ הושלמה פעולה מחזורית\n")
+
+        await asyncio.sleep(1)
 
 def ensure_ffmpeg():
     if not shutil.which("ffmpeg"):
-        print("🛠️ מתקין ffmpeg...", flush=True)
+        print("🛠️ מוריד ffmpeg...")
         os.makedirs("ffmpeg_bin", exist_ok=True)
         zip_path = "ffmpeg.zip"
         r = requests.get(FFMPEG_URL)
@@ -38,7 +81,7 @@ def ensure_ffmpeg():
         if bin_path:
             os.environ["PATH"] += os.pathsep + os.path.dirname(bin_path)
     else:
-        print("⏩ ffmpeg כבר מותקן, מדלג על ההורדה", flush=True)
+        print("⏩ ffmpeg כבר מותקן, מדלג על ההורדה")
 
 def download_yemot_file():
     url = "https://www.call2all.co.il/ym/api/GetIVR2Dir"
@@ -46,7 +89,7 @@ def download_yemot_file():
     response = requests.get(url, params=params)
 
     if response.status_code != 200:
-        print("❌ שגיאה בשליפת רשימת הקבצים", flush=True)
+        print("❌ שגיאה בשליפת הקבצים")
         return None, None
 
     data = response.json()
@@ -80,31 +123,25 @@ def download_yemot_file():
             f.write(r.content)
         return "input.wav", max_name
     else:
-        print("❌ שגיאה בהורדת הקובץ", flush=True)
+        print("❌ שגיאה בהורדת הקובץ")
         return None, None
 
 def delete_yemot_file(file_name):
     url = "https://www.call2all.co.il/ym/api/DeleteFile"
     params = {"token": TOKEN, "path": f"ivr2:/{DOWNLOAD_PATH}/{file_name}"}
     requests.get(url, params=params)
-    print(f"🗑️ הקובץ {file_name} נמחק מהשלוחה", flush=True)
-
-def preprocess_audio_for_whisper(input_file, output_file="whisper_ready.wav"):
-    subprocess.run([
-        "ffmpeg", "-y", "-i", input_file,
-        "-ar", "16000", "-ac", "1", "-acodec", "pcm_s16le", output_file
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return output_file
+    print(f"🗑️ הקובץ {file_name} נמחק מהשלוחה")
 
 def transcribe_audio(filename):
-    print("🛠️ טוען את המודל Whisper: tiny...", flush=True)
+    r = sr.Recognizer()
+    with sr.AudioFile(filename) as source:
+        audio = r.record(source)
     try:
-        model = whisper.load_model("tiny")
-        clean_file = preprocess_audio_for_whisper(filename)
-        result = model.transcribe(clean_file, language="he")
-        return result.get("text", "").strip()
-    except Exception as e:
-        print(f"🚨 שגיאה בתמלול: {e}", flush=True)
+        text = r.recognize_google(audio, language="he-IL")
+        print(f"🗣️ זיהוי: {text}")
+        return text
+    except:
+        print("❌ לא הצליח לזהות דיבור")
         return ""
 
 def load_stock_list(csv_path):
@@ -196,52 +233,7 @@ def upload_to_yemot(wav_file):
         }
     )
     response = requests.post(url, data=m, headers={'Content-Type': m.content_type})
-    print(f"⬆️ קובץ עלה לשלוחה {upload_path}", flush=True)
-
-async def main_loop():
-    stock_dict = load_stock_list("hebrew_stocks.csv")
-    print("🔁 בלולאת בדיקה מתחילה...", flush=True)
-
-    ensure_ffmpeg()
-    last_processed_file = None
-
-    while True:
-        filename, file_name_only = download_yemot_file()
-
-        if not file_name_only:
-            await asyncio.sleep(1)
-            continue
-
-        if file_name_only == last_processed_file:
-            await asyncio.sleep(1)
-            continue
-
-        last_processed_file = file_name_only
-        print(f"📥 קובץ חדש לזיהוי: {file_name_only}", flush=True)
-
-        recognized = transcribe_audio(filename)
-        if recognized:
-            print(f"🗣️ זיהוי: {recognized}", flush=True)
-            best_match = get_best_match(recognized, stock_dict)
-            if best_match:
-                stock_info = stock_dict[best_match]
-                print(f"🎯 התאמה: {recognized} → {stock_info['display_name']}", flush=True)
-                data = get_stock_data(stock_info['ticker'])
-                text = format_text(stock_info, data) if data else f"לא נמצאו נתונים עבור {stock_info['display_name']}"
-            else:
-                text = "לא זוהה נייר ערך תואם"
-        else:
-            text = "לא זוהה דיבור ברור"
-
-        await create_audio(text, "output.mp3")
-        print("🎧 קובץ MP3 נוצר", flush=True)
-        convert_mp3_to_wav("output.mp3", "output.wav")
-        print("🔄 קובץ הומר ל-WAV", flush=True)
-        upload_to_yemot("output.wav")
-        delete_yemot_file(file_name_only)
-        print("✅ הושלמה פעולה מחזורית\n", flush=True)
-
-        await asyncio.sleep(1)
+    print(f"⬆️ קובץ עלה לשלוחה {upload_path}")
 
 if __name__ == "__main__":
     asyncio.run(main_loop())
