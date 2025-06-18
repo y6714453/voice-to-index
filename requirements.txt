@@ -4,5 +4,5 @@ edge-tts
 pandas
 yfinance
 requests-toolbelt
-whisper
 torch
+git+https://github.com/openai/whisper.git
