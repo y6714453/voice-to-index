@@ -28,7 +28,7 @@ async def main_loop():
         filename, file_name_only = download_yemot_file()
 
         if not file_name_only:
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.1)
             continue
 
         print("📂 נמצא קובץ")
