@@ -34,7 +34,7 @@ async def main_loop():
         print("📂 נמצא קובץ")
 
         if file_name_only == last_processed_file:
-            await asyncio.sleep(1)
+            await asyncio.sleep(3)
             continue
 
         last_processed_file = file_name_only
