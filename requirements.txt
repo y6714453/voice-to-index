@@ -1,9 +1,7 @@
+requests
+edge-tts
+speechrecognition
 pandas
 yfinance
-edge-tts
-requests
-ffmpeg-python
-whisper
-openai-whisper @ git+https://github.com/openai/whisper.git
 requests-toolbelt
-SpeechRecognition
+ffmpeg-python
