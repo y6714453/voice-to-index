@@ -9,13 +9,13 @@ from difflib import get_close_matches
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 import re
 import shutil
-import whisper  # ✅ חדש
+import whisper  # ✅ גרסה נכונה של OpenAI
 
 USERNAME = "0733181201"
 PASSWORD = "6714453"
 TOKEN = f"{USERNAME}:{PASSWORD}"
 FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-DOWNLOAD_PATH = "1/0/1"  # שלוחת ההקלטות
+DOWNLOAD_PATH = "1/0/1"
 
 async def main_loop():
     stock_dict = load_stock_list("hebrew_stocks.csv")
@@ -132,11 +132,9 @@ def delete_yemot_file(file_name):
     requests.get(url, params=params)
     print(f"🗑️ הקובץ {file_name} נמחק מהשלוחה")
 
-# ✅ זיהוי דיבור עם Whisper (באנגלית בלבד – בלי תרגום!)
 def transcribe_audio(filename):
-    print("🛠️ טוען את מודל Whisper לזיהוי דיבור...")
-    model = whisper.load_model("base")  # ← שים לב: לא לתרגם ל"בסיס"
-    print("🎧 ממיר קובץ לזיהוי...")
+    print("🛠️ טוען את מודל Whisper המקורי...")
+    model = whisper.load_model("base")
     result = model.transcribe(filename, language="he")
     text = result.get("text", "").strip()
     if text:
