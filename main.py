@@ -14,8 +14,8 @@ import shutil
 USERNAME = "0733181201"
 PASSWORD = "6714453"
 TOKEN = f"{USERNAME}:{PASSWORD}"
-DOWNLOAD_PATH = "10"  # שלוחת ההקלטות
-UPLOAD_PATH = "ivr2:/11/001.wav"  # שלוחת הפלט
+DOWNLOAD_PATH = "1/2/2/10"  # שלוחת ההקלטות
+UPLOAD_PATH = "ivr2:/1/2/2/11/001.wav"  # שלוחת הפלט
 
 async def main_loop():
     stock_dict = load_stock_list("hebrew_stocks.csv")
