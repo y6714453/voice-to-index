@@ -14,8 +14,8 @@ import shutil
 USERNAME = "0733181201"
 PASSWORD = "6714453"
 TOKEN = f"{USERNAME}:{PASSWORD}"
-DOWNLOAD_PATH = "1/0"  # שלוחת ההקלטות
-UPLOAD_PATH = "ivr2:/1/10/001.wav"  # שלוחת הפלט
+DOWNLOAD_PATH = "10"  # שלוחת ההקלטות
+UPLOAD_PATH = "ivr2:/11/001.wav"  # שלוחת הפלט
 
 async def main_loop():
     stock_dict = load_stock_list("hebrew_stocks.csv")
@@ -162,7 +162,7 @@ def upload_to_yemot(wav_file):
     r = requests.post("https://www.call2all.co.il/ym/api/UploadFile", data=m,
                       headers={'Content-Type': m.content_type})
     if r.ok:
-        print(f"⬆️ הקובץ הועלה לשלוחה {UPLOAD_PATH}")
+        print(f"⬆️ הקובץ הועלה לשלוחה 11 {UPLOAD_PATH}")
     else:
         print("❌ שגיאה בהעלאה לימות")
 
